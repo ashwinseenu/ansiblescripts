@@ -1,0 +1,16 @@
+[debian]
+3.238.236.127 ansible_user=admin
+
+[redhat]
+98.83.38.244 ansible_user=ec2-user
+
+[windows]
+98.84.10.34
+
+[windows:vars]
+ansible_user = Administrator
+ansible_password = HDw&eW-RT5wTMma67ZExGD8D7Q5z*63U
+ansible_port = 5986
+ansible_connection = winrm
+ansible_winrm_server_cert_validation = ignore
+
