@@ -1,0 +1,105 @@
+---
+- name: Basic System Administration Playbook (Linux & Windows)
+  hosts: all
+  gather_facts: true # --- Value "true" required for machine identification ---
+
+  vars:
+    admin_username: sysadmin_user
+    admin_comment_linux: "System Administrator Account"
+    new_group_name: team2_admins
+    new_user_name: ash.team2
+    applications_linux: [git, vim]
+    applications_windows: [git, visualstudiocode, putty]
+
+  tasks:
+    # ---  idempotent handlers , restarts if changes occurs ---
+    - name: Updating Systems (Linux - Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+      when: ansible_os_family == "Debian"
+      notify: Restart System (Linux)
+      become: true
+
+    - name: Updating Systems (Linux - RHEL/CentOS/Fedora)
+      ansible.builtin.yum:
+        name: '*'
+        state: latest
+      when: ansible_os_family == "RedHat" or ansible_os_family == "Fedora"
+      notify: Restart System (Linux)
+      become: true
+
+    - name: Chocolatey installation/update in (Windows)
+      chocolatey.chocolatey.win_chocolatey:
+        name: all
+        state: latest
+        install_args: '/S' # --- passes /S - Silent arg to applications while installing ---
+      when: ansible_os_family == "Windows"
+      notify: Restart System (Windows)
+
+    # --- Application Installation with loop and handlers ---
+
+    - name: Installing applications using OS-specific package managers (Linux)
+      ansible.builtin.package:
+        name: "{{ applications_linux }}"
+        state: present
+      when: ansible_system == "Linux"
+      notify: Restart System (Linux)
+      become: true
+
+    - name: Installing applications using Chocolatey (Windows)
+      chocolatey.chocolatey.win_chocolatey:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ applications_windows }}"
+      when: ansible_os_family == "Windows"
+      notify: Restart System (Windows)
+
+    # --- Managing Users and Groups ---
+    - name: Managing admin group '{{ new_group_name }}' (Linux)
+      ansible.builtin.group:
+        name: "{{ new_group_name }}"
+        state: present
+      when: ansible_system == "Linux"
+      become: true
+
+    - name: Managing admin group '{{ new_group_name }}' (Windows)
+      ansible.windows.win_group:
+        name: "{{ new_group_name }}"
+        description: "Team 2 Administrators Group"
+        state: present
+      when: ansible_os_family == "Windows"
+
+    - name: Create user '{{ new_user_name }}' and add to '{{ new_group_name }}' (Linux)
+      ansible.builtin.user:
+        name: "{{ new_user_name }}"
+        comment: "Team 2 User - Ash"
+        groups: "{{ new_group_name }}"
+        append: true
+        state: present
+        generate_ssh_key: true
+      when: ansible_system == "Linux"
+      become: true
+
+    - name: Create user '{{ new_user_name }}' and add to '{{ new_group_name }}' (Windows)
+      ansible.windows.win_user:
+        name: "{{ new_user_name }}"
+        password: "Passwd123"
+        groups: "{{ new_group_name }}"
+        state: present
+      when: ansible_os_family == "Windows"
+
+    # ... Handler Section ...
+
+  handlers:
+    - name: Restart System (Windows)
+      ansible.windows.win_reboot:
+        reboot_timeout: 600
+      when: ansible_os_family == "Windows"
+
+    - name: Restart System (Linux)
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+      when: ansible_system == "Linux"
+      become: true
+
